@@ -647,13 +647,74 @@ The logistic regression model achieves 71.03% accuracy, correctly classifying mo
 
 Section V    Prediction performance on the test sets
 ```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = "D:/School/UCD/2025 Winter/STA 141A/STA141A Project/test")
 
+setwd("D:/School/UCD/2025 Winter/STA 141A/STA141A Project/test")
+
+test = list()
+overview = data.frame(mouse_name = character(), date_exp = character(), stringsAsFactors = FALSE)
+
+for(i in 1:2){
+  test[[i]] = readRDS(paste0("test", i, ".rds"))  # Use paste0 for efficiency
+n
+  print(test[[i]]$mouse_name)
+  print(test[[i]]$date_exp)
+
+  overview = rbind(overview, data.frame(
+    mouse_name = test[[i]]$mouse_name, 
+    date_exp = test[[i]]$date_exp, 
+    stringsAsFactors = FALSE
+  ))
+}
+print(overview)
 ```
-
+The output confirms that the overview data frame correctly captures the test session details, including mouse names ("Cori" and "Lederberg") and their respective experiment dates ("2016-12-14" and "2017-12-11").
 ```{r, echo=FALSE}
+library(caret)
+
+# Initialize list for test data
+test.data = list()
+
+# Process the test sessions
+for(i in 1:2) {
+  feedback_type = as.factor(session[[i]]$feedback_type)  # Convert feedback type to factor
+  spk.counts = sapply(session[[i]]$spks, function(x) sum(rowSums(x, na.rm = TRUE)))  # Handle potential NA values
+  left_contrast = session[[i]]$contrast_left
+  right_contrast = session[[i]]$contrast_right
+  
+  test.data[[i]] = data.frame(feedback_type, spk.counts, left_contrast, right_contrast)
+}
+
+# Combine all test data into a single dataframe
+comb_test_data_df = do.call(rbind, test.data)
+
+# Ensure feedback_type is a factor
+comb_test_data_df$feedback_type = as.factor(comb_test_data_df$feedback_type)
+
+# Split test data into train (80%) and test (20%) sets
+set.seed(123)
+test.train.indices = createDataPartition(comb_test_data_df$feedback_type, p = 0.8, list = FALSE)
+train.test.data = comb_test_data_df[test.train.indices, ]
+test.test.data = comb_test_data_df[-test.train.indices,]
+
+# Train logistic regression model on test dataset
+test_pred_model = train(feedback_type ~ ., data = train.test.data, method = "glm", family = "binomial")
+print(test_pred_model)
+
+# Make predictions on the test set
+preds = predict(test_pred_model, newdata = test.test.data)
+
+# Compute confusion matrix to evaluate performance
+conf.matrix = confusionMatrix(preds, test.test.data$feedback_type)
+print(conf.matrix)
 
 ```
+Our model’s performance on test data from Session 1 test1.rds and Session 18 test2.rds was evaluated using multiple metrics. Accuracy was 69.44%, indicating reasonable performance but leaving room for improvement. However, due to potential class imbalance, we also examined sensitivity (0.4444) and specificity (0.8444), showing that the model is much better at identifying positive feedback trials (1) than negative ones (-1). The Kappa score (0.3071) suggests only moderate agreement beyond random chance, while the Balanced Accuracy (0.6444) accounts for class distribution. McNemar’s Test (p = 0.1356) indicates no significant misclassification bias. To enhance performance, the model could benefit from addressing class imbalance through resampling or weighted loss functions and exploring alternative models like Random Forest for better generalization across sessions.
+
 Section VI   Discussion 
+While the model performs reasonably well overall, it struggles with detecting negative feedback trials accurately. The relatively low Kappa statistic (0.3071) indicates moderate agreement beyond chance. Future improvements could include feature engineering, balancing the dataset, or exploring non-linear models like Random Forest or SVM to enhance classification performance.
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -662,12 +723,6 @@ knitr::opts_chunk$set(echo = TRUE)
 summary(cars)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
